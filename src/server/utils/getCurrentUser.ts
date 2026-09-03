@@ -10,10 +10,12 @@ export const getCurrentUserId = async () => {
     throw new Error("Unauthorized");
   }
 
-  const decoded = jwt.verify(
-    token,
-    process.env.JWT_SECRET!
-  ) as { userId?: string };
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET is not set in environment variables");
+  }
+
+  const decoded = jwt.verify(token, jwtSecret) as { userId?: string };
 
   if (!decoded.userId) {
     throw new Error("Invalid token");
