@@ -12,13 +12,15 @@ export const getAllConversations = async (req: NextRequest) => {
         participants: currentUserId,
         })
         .populate("participants", "username profilePicture about lastSeen isOnline")
-        .populate("lastMessage", "content createdAt sender receiver")
+        .populate("lastMessage", "content createdAt")
+        .sort({ updatedAt: -1 })
         .lean();
 
         return response(200, "Conversations fetched successfully", { conversations });
 
     }catch(err) {
         if (err instanceof Error) {
+             console.error("getAllConversations error:", err);
             if (
                 err.message === "Unauthorized" ||
                 err.message === "Invalid token"

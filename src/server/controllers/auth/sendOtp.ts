@@ -15,7 +15,7 @@ export const sendOtp = async (req: NextRequest) => {
 
   try {
     if (email) {
-      user = await User.findOne({ email });
+      user = await User.findOne({ email }); 
 
       if (!user) {
         user = new User({ email });
@@ -52,3 +52,4 @@ export const sendOtp = async (req: NextRequest) => {
     return response(500, "Internal server error");
   }
 };
+

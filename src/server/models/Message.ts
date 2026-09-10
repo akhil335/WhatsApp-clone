@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import messageStatusSchema from "./MessageStatus";
 
 const messageSchema = new mongoose.Schema(
   {
@@ -12,28 +13,30 @@ const messageSchema = new mongoose.Schema(
       ref     : "User",
       required: true,
     },
-    receiver: {
-      type    : mongoose.Schema.Types.ObjectId,
-      ref     : "User",
-      required: true,
-    },
     content        : { type: String },
-    imageOrVideoUrl: { type: String },
-    contentType    : {
-      type    : String,
-      enum    : ["image", "video", "text"],
-      required: true,
-    },
-    reactions: [
+    media: [
       {
-        user : { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        emoji: { type: String },
+        url: {
+          type: String,
+          required: true,
+        },
+        type: {
+          type: String,
+          enum: ["image", "video", "application", "audio"],
+          required: true,
+        },
       },
     ],
-    messageStatus: {
-      type   : String,
-      enum   : ["sent", "delivered", "seen"],
-      default: "sent",
+    reactions: [
+      {
+        user : { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        emoji: { type: String, required: true, },
+      },
+    ],
+    messageStatuses: {
+      type: Map,
+      of: messageStatusSchema,
+      default: {},
     },
   },
   { timestamps: true },

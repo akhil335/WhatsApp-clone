@@ -1,70 +1,207 @@
 import Conversation from "@/server/models/Conversation";
 import Message from "@/server/models/Message";
+import { uploadToCloudinary } from "@/server/services/cloudinaryService";
 import { getCurrentUserId } from "@/server/utils/getCurrentUser";
 import { response } from "@/server/utils/responseHandler";
 import { NextRequest } from "next/server";
 
 export const sendMessage = async (req: NextRequest) => {
-    try {
-        const userId = await getCurrentUserId()
+  try {
+    const userId = await getCurrentUserId();
 
-        const formData = await req.formData()
+    const formData = await req.formData();
 
-        const content = formData.get("content") as string | null
-        const file = formData.get("file") as File | null
+    const content =
+      (formData.get("content") as string | null)?.trim() || null;
 
-        const receiverId = formData.get("receiverId") as string | null
-        const conversationId = formData.get("conversationId") as string | null
+    const files = formData.getAll("files") as File[] | null;
 
-        let conversation
+    const receiverId = formData.get("receiverId") as string | null;
 
-        if(conversationId) {
-            conversation = await Conversation.findOne({
-                _id: conversationId,
-                participants: userId
-            })
+    const conversationId = formData.get("conversationId") as string | null;
 
-            if(!conversation) throw new Error("Conversation not found")  
-        }else {
-            conversation = await Conversation.findOne({
-                participants: { $all: [userId, receiverId], $size: 2 }
-            })
+    // --------------------------------
+    // Validate message
+    // --------------------------------
 
-            if(!conversation) {
-                conversation = await new Conversation({ participants: [userId, receiverId] })
+    if (!content && (!files || files.length === 0)) {
+      throw new Error("Message content or file is required");
+    }
 
-                await conversation.save()
-            }
-        }
+    // --------------------------------
+    // Find or create conversation
+    // --------------------------------
 
-        const message = await new Message({
-            conversation: conversation._id,
-            sender: userId,
-            receiver: receiverId,
-            messageStatus: "sent",
-            content
-        })
+    let conversation;
 
-        await message.save()
+    if (conversationId) {
+      conversation = await Conversation.findOne({
+        _id: conversationId,
+        participants: userId,
+      });
 
-        const unreadCount = await Message.countDocuments({
-            conversation: conversation._id,
-            receiver: receiverId,
-            messageStatus: { $ne: "seen" },
+      if (!conversation) {
+        throw new Error("Conversation not found");
+      }
+    } else {
+      if (!receiverId) {
+        throw new Error("Receiver ID is required");
+      }
+
+      conversation = await Conversation.findOne({
+        participants: {
+          $all: [userId, receiverId],
+          $size: 2,
+        },
+      });
+
+      if (!conversation) {
+        conversation = new Conversation({
+          participants: [userId, receiverId],
         });
 
-        conversation.lastMessage = message._id
-
-        await conversation.save()
-
-        return response(200, "Message sent successfully")
-
-    } catch (err) {
-        if (err instanceof Error) {
-            return response(400, err.message);
-        }
-
-        return response(500, "Internal server error");
+        await conversation.save();
+      }
     }
-}
 
+    // --------------------------------
+    // Create message
+    // --------------------------------
+
+    const message = new Message({
+      conversation: conversation._id,
+      sender: userId,
+      content,
+    });
+
+    // --------------------------------
+    // Initialize message statuses
+    // --------------------------------
+
+    const messageStatuses = new Map();
+
+    for (const participantId of conversation.participants) {
+    const id = participantId.toString();
+
+        if (id !== userId.toString()) {
+            messageStatuses.set(id, {});
+        }
+    }
+
+    message.messageStatuses = messageStatuses;
+
+    // --------------------------------
+    // Upload media
+    // --------------------------------
+
+    const maxImageFileSize = 10 * 1024 * 1024; // 10 MB
+    const maxDocsFileSize = 50 * 1024 * 1024; // 50 MB
+
+    if (files && files.length > 0) {
+      const allowedTypes = [
+        "image",
+        "video",
+        "application",
+        "audio",
+      ];
+
+      for (const file of files) {
+        if (file instanceof File && file.size > 0) {
+          const mimeType = file.type.split("/")[0];
+
+          if (!allowedTypes.includes(mimeType)) {
+            throw new Error(
+              `Unsupported file type: ${file.type}`
+            );
+          }
+
+          // Image
+          if (
+            mimeType === "image" &&
+            file.size <= maxImageFileSize
+          ) {
+            const uploadResult = await uploadToCloudinary(
+              file,
+              "chat-media"
+            );
+
+            message.media.push({
+              url: uploadResult.secure_url,
+              type: "image",
+            });
+          }
+
+          // Other files
+          else if (file.size <= maxDocsFileSize) {
+            const uploadResult = await uploadToCloudinary(
+              file,
+              "chat-media"
+            );
+
+            message.media.push({
+              url: uploadResult.secure_url,
+              type: mimeType,
+            });
+          }
+
+          // File too large
+          else {
+            throw new Error("File size exceeds the limit");
+          }
+        }
+      }
+    }
+
+    // --------------------------------
+    // Save message
+    // --------------------------------
+
+    await message.save();
+
+    // --------------------------------
+    // Update unread counts
+    // --------------------------------
+
+    for (const participantId of conversation.participants) {
+      const id = participantId.toString();
+
+      // Don't count the sender's own message as unread
+      if (id !== userId.toString()) {
+        const current =
+          conversation.unreadCounts.get(id) || 0;
+
+        conversation.unreadCounts.set(id, current + 1);
+      }
+    }
+
+    // --------------------------------
+    // Update conversation
+    // --------------------------------
+
+    conversation.lastMessage = message._id;
+
+    await conversation.save();
+
+    // --------------------------------
+    // Get populated message
+    // --------------------------------
+
+    const populatedMessage = await Message.findById(
+      message._id
+    ).lean();
+
+    return response(
+      201,
+      "Message sent successfully",
+      {
+        populatedMessage,
+      }
+    );
+  } catch (err) {
+    if (err instanceof Error) {
+      return response(400, err.message);
+    }
+
+    return response(500, "Internal server error");
+  }
+};
