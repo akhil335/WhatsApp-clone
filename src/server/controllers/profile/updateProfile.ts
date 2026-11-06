@@ -23,15 +23,15 @@ export const updateProfile = async (req: NextRequest) => {
     }
 
     if (username) {
-    user.username = username.toString();
+      user.username = username.toString();
     }
 
     if (agreed) {
-    user.agreed = agreed === "true";
+      user.termsAccepted = agreed === "true";
     }
 
     if (about) {
-    user.about = about.toString();
+      user.about = about.toString();
     }
 
     // update user fields...

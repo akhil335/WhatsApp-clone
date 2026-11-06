@@ -26,7 +26,7 @@ export const getConversationMessages = async (
       participants: userId,
     }).populate<{ participants: PopulatedParticipant[] }>(
       "participants",
-      "name profilePicture lastSeen"
+      "username profilePicture lastSeen"
     );
 
     if (!conversation) {
@@ -34,13 +34,13 @@ export const getConversationMessages = async (
     }
 
     const messages = await Message.find({ conversation: conversationId })
-      .populate("sender", "name profilePicture")
+      .populate("sender", "username profilePicture")
       .sort({ _id: -1 })
       .lean();
 
     const receiver = conversation.participants.find(
-            (p: PopulatedParticipant) => p._id.toString() !== userId.toString()
-          )
+      (p: PopulatedParticipant) => p._id.toString() !== userId.toString()
+    )
 
     return response(200, "Messages fetched successfully", {
       data: {
