@@ -4,12 +4,22 @@ import { generateToken } from "@/server/utils/generateToken";
 import { response } from "@/server/utils/responseHandler";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
+import { verifyOtpSchema } from "@/server/schemas/auth.schema";
 
 export const verifyOtp = async (req: NextRequest) => {
-  const body = await req.json();
-  const { phoneNumber, phoneSuffix, email, otp } = body;
-
   try {
+    const rawBody = await req.json();
+
+    // 1. Validate incoming body with Zod (validates 6-digit regex and presence of email/phone)
+    const validation = verifyOtpSchema.safeParse(rawBody);
+
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message || "Invalid input";
+      return response(400, firstError);
+    }
+
+    const { phoneNumber, phoneSuffix, email, otp } = validation.data;
+
     let user: InstanceType<typeof User> | null = null;
 
     if (email) {
@@ -18,7 +28,7 @@ export const verifyOtp = async (req: NextRequest) => {
       if (!user) {
         return response(404, "User not found");
       }
-      
+
       if (
         !user.emailOtp ||
         String(user.emailOtp) !== String(otp) ||
@@ -46,7 +56,7 @@ export const verifyOtp = async (req: NextRequest) => {
       }
 
       const result = await verifyTwilioOtp(fullPhoneNumber, otp);
-     
+
       if (result.status !== "approved") {
         return response(400, "Invalid or expired OTP");
       }
@@ -70,7 +80,7 @@ export const verifyOtp = async (req: NextRequest) => {
 
     return response(200, "Otp verified successfully", { user });
   } catch (err) {
-    console.log(err);
+    console.error("verifyOtp error:", err);
     return response(500, "Internal server error");
   }
 };

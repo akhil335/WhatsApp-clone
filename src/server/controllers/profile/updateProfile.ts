@@ -3,18 +3,29 @@ import User from "@/server/models/User";
 import { getCurrentUserId } from "@/server/utils/getCurrentUser";
 import { response } from "@/server/utils/responseHandler";
 import { uploadToCloudinary } from "@/server/services/cloudinaryService";
+import { updateProfileSchema } from "@/server/schemas/profile.schema";
 
 export const updateProfile = async (req: NextRequest) => {
   try {
     const userId = await getCurrentUserId();
-
     const formData = await req.formData();
 
-    const username = formData.get("username");
-    const agreed = formData.get("agreed");
-    const about = formData.get("about");
-    const file = formData.get("file");
-    const profilePicture = formData.get("profilePicture");
+    const rawUsername = formData.get("username")?.toString() || undefined;
+    const rawAbout = formData.get("about")?.toString() || undefined;
+    const rawAgreed = formData.get("agreed");
+    const termsAccepted = rawAgreed !== null ? rawAgreed === "true" : undefined;
+
+    // 1. Validate fields with Zod
+    const validation = updateProfileSchema.safeParse({
+      username: rawUsername,
+      about: rawAbout,
+      termsAccepted,
+    });
+
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message || "Invalid input";
+      return response(400, firstError);
+    }
 
     const user = await User.findById(userId);
 
@@ -22,20 +33,21 @@ export const updateProfile = async (req: NextRequest) => {
       return response(404, "User not found");
     }
 
-    if (username) {
-      user.username = username.toString();
+    const { username, about, termsAccepted: accepted } = validation.data;
+
+    if (username !== undefined) {
+      user.username = username;
     }
 
-    if (agreed) {
-      user.termsAccepted = agreed === "true";
+    if (accepted !== undefined) {
+      user.termsAccepted = accepted;
     }
 
-    if (about) {
-      user.about = about.toString();
+    if (about !== undefined) {
+      user.about = about;
     }
 
-    // update user fields...
-
+    const file = formData.get("file");
     if (file && file instanceof File && file.size > 0) {
       const uploadResult = await uploadToCloudinary(
         file,
@@ -51,7 +63,7 @@ export const updateProfile = async (req: NextRequest) => {
       user,
     });
   } catch (err) {
-    console.error(err);
+    console.error("updateProfile error:", err);
     return response(500, "Internal server error");
   }
 };

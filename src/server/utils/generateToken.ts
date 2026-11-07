@@ -1,12 +1,8 @@
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
+import { env } from "@/server/env";
 
 export const generateToken = (userId: string) => {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-        throw new Error("JWT_SECRET is not set in environment variables");
-    }
-
-    return jwt.sign({ userId }, jwtSecret, {
-        expiresIn: "1y",
-    });
-}
+  return jwt.sign({ userId }, env.JWT_SECRET, {
+    expiresIn: "365d",
+  });
+};

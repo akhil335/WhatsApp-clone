@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { env } from "@/server/env";
 
 export const getCurrentUserId = async () => {
   const cookieStore = await cookies();
@@ -10,12 +11,7 @@ export const getCurrentUserId = async () => {
     throw new Error("Unauthorized");
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    throw new Error("JWT_SECRET is not set in environment variables");
-  }
-
-  const decoded = jwt.verify(token, jwtSecret) as { userId?: string };
+  const decoded = jwt.verify(token, env.JWT_SECRET) as { userId?: string };
 
   if (!decoded.userId) {
     throw new Error("Invalid token");
