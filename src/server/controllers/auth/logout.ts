@@ -1,15 +1,11 @@
-import { response } from "@/server/utils/responseHandler"
-import { cookies } from "next/headers"
+import { response } from "@/server/utils/responseHandler";
+import { withErrorHandler } from "@/server/utils/errorHandler";
+import { cookies } from "next/headers";
+import { NextRequest } from "next/server";
 
-export const logout = async () => {
-    try {
-    const cookieStore = await cookies()
-    cookieStore.delete('auth_token')
-     
-     return response(200, "Logged out successfully")
-    } catch(err) {
-        console.error("Logout error:", err);
+export const logout = withErrorHandler(async (req: NextRequest) => {
+  const cookieStore = await cookies();
+  cookieStore.delete("auth_token");
 
-        return response(500, "Error occurred while logging out");
-    }
-}
+  return response(200, "Logged out successfully");
+});
