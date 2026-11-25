@@ -3,6 +3,7 @@ import { getCurrentUserId } from "@/server/utils/getCurrentUser";
 import { response } from "@/server/utils/responseHandler";
 import { withErrorHandler } from "@/server/utils/errorHandler";
 
+// Show last message of all the user chat in a list
 export const getAllConversations = withErrorHandler(async () => {
   const currentUserId = await getCurrentUserId();
 
